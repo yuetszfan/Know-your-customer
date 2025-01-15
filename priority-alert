@@ -1,0 +1,83 @@
+import java.util.ArrayList;
+import java.util.PriorityQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+class ComplianceViolation implements Comparable<ComplianceViolation> {
+    private String documentName;
+    private String violationDescription;
+    private int priority; // if a violation has larger priority number, it's more critical and thus should trigger alert earlier
+
+    public ComplianceViolation(String documentName, String violationDescription, int priority) {
+        this.documentName = documentName;
+        this.violationDescription = violationDescription;
+        this.priority = priority;
+    }
+
+    public String getDocumentName() {
+        return documentName;
+    }
+
+    public String getViolationDescription() {
+        return violationDescription;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
+    @Override
+    public int compareTo(ComplianceViolation other) {
+        return Integer.compare(other.priority, this.priority); // higher priority will be put in queue first
+    }
+}
+
+public class KYCSystem {
+    private ArrayList<ComplianceViolation> violationsList;
+    private PriorityQueue<ComplianceViolation> violationQueue;
+    private ExecutorService alertService;
+
+    public KYCSystem() {
+        this.violationsList = new ArrayList<>();
+        this.violationQueue = new PriorityQueue<>();
+        this.alertService = Executors.newFixedThreadPool(2); // Multi-threaded alert processing
+    }
+
+    // Add a compliance violation to list and queue
+    public void addViolation(String documentName, String description, int priority) {
+        ComplianceViolation violation = new ComplianceViolation(documentName, description, priority);
+        violationsList.add(violation);
+        violationQueue.add(violation);
+    }
+
+    // Process violations asynchronously, process critical ones first
+    public void processViolations() {
+        while (!violationQueue.isEmpty()) {
+            ComplianceViolation violation = violationQueue.poll();
+            alertService.submit(() -> sendAlert(violation));
+        }
+    }
+
+    // Send alert for a specific violation
+    private void sendAlert(ComplianceViolation violation) {
+        System.out.println("ALERT: Document: " + violation.getDocumentName()
+                + " | Violation: " + violation.getViolationDescription()
+                + " | Priority: " + violation.getPriority());
+    }
+
+    // Shutdown the alert service
+    public void shutdown() {
+        alertService.shutdown();
+    }
+
+    public static void main(String[] args) {
+        KYCSystem kycSystem = new KYCSystem();
+
+        kycSystem.addViolation("Document1", "Missing required signature", 3);
+        kycSystem.addViolation("Document2", "Expired ID", 1);
+        kycSystem.addViolation("Document3", "Incomplete address details", 2);
+
+        kycSystem.processViolations();
+        kycSystem.shutdown();
+    }
+}
